@@ -1,44 +1,23 @@
 import { Course } from '../types/course';
+import client from '../api/client';
 
 export const generateCourseFromPlaylist = async (playlistUrl: string): Promise<Course> => {
-  const response = await fetch('https://tubecourse.onrender.com/api/process-playlist', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ playlistUrl }), 
-  });
+  const response = await client.post('/process-playlist', { playlistUrl });
+  const resJson = response.data;
 
-  if (!response.ok) {
-    throw new Error(`API request failed with status ${response.status}`);
-  }
-
-  const resJson = await response.json();
-  //console.log('API response:', resJson);
-
- 
   const course: Course = {
-    id: resJson.id,
+    id: resJson.id, // Generate a temporary ID if not provided by backend yet, or usage logic handles it
+    // The backend /process-playlist returns { id, title, source, raw, course: {...} }
     title: resJson.title,
     source: resJson.source,
     raw: resJson.raw,
-    ...resJson.course, 
+    ...resJson.course,
   };
 
-  //console.log('Generated course:', course);
   return course;
 };
 
 export const saveCourseToDB = async (course: any) => {
-  const res = await fetch('https://tubecourse.onrender.com/api/courses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(course),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to save course to DB');
-  }
-
-  return await res.json(); // should contain _id
+  const res = await client.post('/courses', course);
+  return res.data;
 };

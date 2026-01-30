@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Eye, Save, Plus, Trash2, Edit3, ArrowUp, ArrowDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useCourseStore } from '../store/useCourseStore'; 
+import { useCourseStore } from '../store/useCourseStore';
+import client from '../api/client';
 
 export const CourseEditor: React.FC = () => {
   const { courseId } = useParams();
@@ -47,28 +48,18 @@ export const CourseEditor: React.FC = () => {
       updateCourse({ ...editedCourse });
 
       // 2. Save to MongoDB (backend persistence)
-      const res = await fetch(`https://tubecourse.onrender.com/api/courses/${editedCourse.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(editedCourse),
-      });
-
-      if (!res.ok) {
-        // If backend returns an error, throw it to be caught
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to update course in DB");
-      }
+      await client.put(`/courses/${editedCourse.id}`, editedCourse);
 
       setSaveMessage("Changes saved successfully!");
       setIsEditing(false); // Exit editing mode after successful save
 
       // Clear message after 3 seconds
       setTimeout(() => setSaveMessage(""), 3000);
-    } catch (err: any) { // Use 'any' for error type if not strictly typed
+    } catch (err: any) {
       console.error("Error saving course:", err);
-      setSaveMessage(`Failed to save changes: ${err.message || 'Unknown error'}`);
+      // Clean up error message handling
+      const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+      setSaveMessage(`Failed to save changes: ${errorMessage}`);
       // Clear message after 3 seconds even on error
       setTimeout(() => setSaveMessage(""), 3000);
     }
@@ -162,7 +153,10 @@ export const CourseEditor: React.FC = () => {
   const removeQuiz = (moduleIndex: number, lessonIndex: number, quizIndex: number) => {
     setEditedCourse(prev => {
       const updatedModules = structuredClone(prev!.modules);
-      updatedModules[moduleIndex].lessons[lessonIndex].quiz = updatedModules[moduleIndex].lessons[lessonIndex].quiz!.filter((_, i) => i !== quizIndex);
+      const lesson = updatedModules[moduleIndex].lessons[lessonIndex];
+      if (lesson.quiz) {
+        lesson.quiz = lesson.quiz.filter((_, i) => i !== quizIndex);
+      }
       return { ...prev!, modules: updatedModules };
     });
   };
@@ -299,12 +293,12 @@ export const CourseEditor: React.FC = () => {
 
                 <div className="space-y-4">
                   {editedCourse.modules.map((module, moduleIndex) => (
-                    <div key={moduleIndex} className="border border-gray-300 rounded-lg p-4 bg-gray-50"> 
+                    <div key={moduleIndex} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
                         <input
                           type="text"
                           value={module.title}
-                          onChange={(e) => updateNestedState(['modules', moduleIndex, 'title'], e.target.value)}
+                          onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'title'], e.target.value)}
                           // Updated focus ring color
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mr-4"
                         />
@@ -338,7 +332,7 @@ export const CourseEditor: React.FC = () => {
                         </label>
                         <textarea
                           value={module.description}
-                          onChange={(e) => updateNestedState(['modules', moduleIndex, 'description'], e.target.value)}
+                          onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'description'], e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                           rows={2}
                         />
@@ -358,13 +352,13 @@ export const CourseEditor: React.FC = () => {
                           </button>
                         </div>
                         {module.lessons.map((lesson, lessonIndex) => (
-                          <div key={lessonIndex} className="space-y-2 bg-white p-4 rounded border border-gray-200"> 
+                          <div key={lessonIndex} className="space-y-2 bg-white p-4 rounded border border-gray-200">
                             {/* Lesson Title */}
                             <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Title</label>
                             <input
                               type="text"
                               value={lesson.title}
-                              onChange={(e) => updateNestedState(['modules', moduleIndex, 'lessons', lessonIndex, 'title'], e.target.value)}
+                              onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'lessons', String(lessonIndex), 'title'], e.target.value)}
                               // Updated focus ring color
                               className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-transparent mb-2"
                             />
@@ -372,7 +366,7 @@ export const CourseEditor: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Description</label>
                             <textarea
                               value={lesson.description}
-                              onChange={(e) => updateNestedState(['modules', moduleIndex, 'lessons', lessonIndex, 'description'], e.target.value)}
+                              onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'lessons', String(lessonIndex), 'description'], e.target.value)}
                               className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-transparent mb-2"
                               rows={2}
                             />
@@ -381,7 +375,7 @@ export const CourseEditor: React.FC = () => {
                             <input
                               type="url"
                               value={lesson.videoURL || ''}
-                              onChange={(e) => updateNestedState(['modules', moduleIndex, 'lessons', lessonIndex, 'videoURL'], e.target.value)}
+                              onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'lessons', String(lessonIndex), 'videoURL'], e.target.value)}
                               className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-transparent mb-2"
                               placeholder="https://youtube.com/watch?v=..."
                             />
@@ -410,7 +404,7 @@ export const CourseEditor: React.FC = () => {
                             </div>
 
                             {/* Quizzes within Lesson */}
-                            <div className="mt-4 border-t border-gray-100 pt-4"> 
+                            <div className="mt-4 border-t border-gray-100 pt-4">
                               <div className="flex justify-between items-center mb-2">
                                 <h5 className="text-md font-semibold text-gray-700">Quizzes</h5>
                                 <button
@@ -423,13 +417,13 @@ export const CourseEditor: React.FC = () => {
                                 </button>
                               </div>
                               {lesson.quiz?.map((quiz, quizIndex) => (
-                                <div key={quizIndex} className="bg-gray-100 border border-gray-200 rounded p-3 space-y-2 mb-2"> 
+                                <div key={quizIndex} className="bg-gray-100 border border-gray-200 rounded p-3 space-y-2 mb-2">
                                   {/* Question */}
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Question</label>
                                   <input
                                     type="text"
                                     value={quiz.question}
-                                    onChange={(e) => updateNestedState(['modules', moduleIndex, 'lessons', lessonIndex, 'quiz', quizIndex, 'question'], e.target.value)}
+                                    onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'lessons', String(lessonIndex), 'quiz', String(quizIndex), 'question'], e.target.value)}
                                     // Updated focus ring color
                                     className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-transparent"
                                     placeholder="Quiz question"
@@ -438,7 +432,7 @@ export const CourseEditor: React.FC = () => {
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
                                   <select
                                     value={quiz.difficulty}
-                                    onChange={(e) => updateNestedState(['modules', moduleIndex, 'lessons', lessonIndex, 'quiz', quizIndex, 'difficulty'], e.target.value as 'medium' | 'hard')}
+                                    onChange={(e) => updateNestedState(['modules', String(moduleIndex), 'lessons', String(lessonIndex), 'quiz', String(quizIndex), 'difficulty'], e.target.value)}
                                     className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-transparent"
                                   >
                                     <option value="medium">Medium</option>
@@ -540,7 +534,7 @@ export const CourseEditor: React.FC = () => {
                         <input
                           type="text"
                           value={project.title}
-                          onChange={(e) => updateNestedState(['projects', projectIndex, 'title'], e.target.value)}
+                          onChange={(e) => updateNestedState(['projects', String(projectIndex), 'title'], e.target.value)}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mr-4"
                           placeholder="Project Title"
                         />
@@ -554,7 +548,7 @@ export const CourseEditor: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                       <textarea
                         value={project.description}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'description'], e.target.value)}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'description'], e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         rows={3}
                         placeholder="Project Description"
@@ -562,7 +556,7 @@ export const CourseEditor: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
                       <select
                         value={project.difficulty}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'difficulty'], e.target.value as 'Beginner' | 'Intermediate' | 'Advanced')}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'difficulty'], e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                       >
                         <option value="Beginner">Beginner</option>
@@ -574,7 +568,7 @@ export const CourseEditor: React.FC = () => {
                       <input
                         type="text"
                         value={project.estimatedTime}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'estimatedTime'], e.target.value)}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'estimatedTime'], e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         placeholder="e.g., 4-6 hours"
                       />
@@ -584,7 +578,7 @@ export const CourseEditor: React.FC = () => {
                       <input
                         type="text"
                         value={project.keySkillsCovered.join(', ')}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'keySkillsCovered'], e.target.value.split(',').map(s => s.trim()))}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'keySkillsCovered'], e.target.value.split(',').map(s => s.trim()))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         placeholder="e.g., HTML, CSS, JavaScript"
                       />
@@ -593,7 +587,7 @@ export const CourseEditor: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Milestones (one per line)</label>
                       <textarea
                         value={project.milestones.join('\n')}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'milestones'], e.target.value.split('\n').map(s => s.trim()))}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'milestones'], e.target.value.split('\n').map(s => s.trim()))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         rows={3}
                         placeholder="Step 1: Set up project structure&#10;Step 2: Build UI components"
@@ -604,7 +598,7 @@ export const CourseEditor: React.FC = () => {
                       <input
                         type="text"
                         value={project.suggestedTools.join(', ')}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'suggestedTools'], e.target.value.split(',').map(s => s.trim()))}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'suggestedTools'], e.target.value.split(',').map(s => s.trim()))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         placeholder="e.g., VS Code, Git, Chrome DevTools"
                       />
@@ -613,7 +607,7 @@ export const CourseEditor: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Features (one per line, optional)</label>
                       <textarea
                         value={project.bonusFeatures?.join('\n') || ''}
-                        onChange={(e) => updateNestedState(['projects', projectIndex, 'bonusFeatures'], e.target.value.split('\n').map(s => s.trim()))}
+                        onChange={(e) => updateNestedState(['projects', String(projectIndex), 'bonusFeatures'], e.target.value.split('\n').map(s => s.trim()))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-2"
                         rows={2}
                         placeholder="Add dark mode&#10;Implement user authentication"

@@ -1,32 +1,57 @@
 import express from 'express';
-import { youtube } from '../config/youtubeAPI.js'; 
-import { genAI } from '../config/genAI.js';      
-import { extractPlaylistId } from '../services/youtube.js'; 
-import { getCourseGenerationPayload } from '../services/geminiPrompt.js'; 
+import { youtube } from '../config/youtubeAPI.js';
+import { genAI } from '../config/genAI.js';
+import { extractYouTubeIds } from '../services/youtube.js';
+import { getCourseGenerationPayload } from '../services/geminiPrompt.js';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
   const { playlistUrl } = req.body;
-  if (!playlistUrl) return res.status(400).json({ error: 'Missing playlistUrl' });
+  if (!playlistUrl) return res.status(400).json({ error: 'Missing URL' });
 
-  const playlistId = extractPlaylistId(playlistUrl);
-  if (!playlistId) return res.status(400).json({ error: 'Invalid playlist URL' });
+  const { playlistId, videoId } = extractYouTubeIds(playlistUrl);
+
+  if (!playlistId && !videoId) {
+    return res.status(400).json({ error: 'Invalid YouTube URL. Please provide a playlist or video link.' });
+  }
 
   try {
-    //console.log('📺 Fetching playlist videos for ID:', playlistId);
-    const videosRes = await youtube.playlistItems.list({
-      part: ['snippet'],
-      playlistId,
-      maxResults: 50, 
-    });
+    let videos = [];
 
-    const videos = videosRes.data.items
-      .map(item => ({
-        title: item.snippet?.title,
-        videoURL: `https://www.youtube.com/watch?v=${item.snippet?.resourceId?.videoId}`,
-      }))
-      .filter(v => v.title && v.videoURL);
+    if (playlistId) {
+      //console.log('📺 Fetching playlist videos for ID:', playlistId);
+      const videosRes = await youtube.playlistItems.list({
+        part: ['snippet'],
+        playlistId,
+        maxResults: 50,
+      });
+
+      videos = videosRes.data.items
+        .map(item => ({
+          title: item.snippet?.title,
+          videoURL: `https://www.youtube.com/watch?v=${item.snippet?.resourceId?.videoId}`,
+        }))
+        .filter(v => v.title && v.videoURL && v.title !== 'Private video');
+    } else if (videoId) {
+      // Only video ID found
+      const videoRes = await youtube.videos.list({
+        part: ['snippet'],
+        id: videoId
+      });
+
+      if (videoRes.data.items.length > 0) {
+        const item = videoRes.data.items[0];
+        videos = [{
+          title: item.snippet.title,
+          videoURL: `https://www.youtube.com/watch?v=${videoId}`
+        }];
+      }
+    }
+
+    if (!videos.length) {
+      return res.status(404).json({ error: 'No accessible videos found.' });
+    }
 
     if (!videos.length) {
       return res.status(404).json({ error: 'No videos found in playlist.' });
@@ -34,7 +59,7 @@ router.post('/', async (req, res) => {
 
     // Get the prompt and the structured generation config
     const { prompt, generationConfig } = getCourseGenerationPayload(videos);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro-latest' }); 
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -69,7 +94,8 @@ router.post('/', async (req, res) => {
     if (err.response && err.response.status) {
       res.status(err.response.status).json({ error: `AI API Error: ${err.response.status} - ${err.message}` });
     } else {
-      res.status(500).json({ error: 'Failed to process playlist due to an internal error.' });
+      console.error('Full Error Object:', err); // Debugging
+      res.status(500).json({ error: `Internal Error: ${err.message || 'Unknown error occurred'}` });
     }
   }
 });

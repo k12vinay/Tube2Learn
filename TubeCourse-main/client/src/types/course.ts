@@ -1,7 +1,8 @@
 export interface QuizQuestion {
   question: string;
   options: string[];
-  correctAnswer: string;
+  correctAnswer: number;
+  difficulty?: 'medium' | 'hard';
 }
 
 export interface Lesson {
@@ -9,7 +10,7 @@ export interface Lesson {
   description: string;
   quiz?: QuizQuestion[];
   videoURL: string | null;
-  duration?: string; 
+  duration?: string;
 }
 
 export interface Module {
@@ -21,12 +22,12 @@ export interface Module {
 export interface Project {
   title: string;
   description: string;
-  difficulty: "Beginner" | "Intermediate" | "Advanced"; 
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
   keySkillsCovered: string[];
   estimatedTime: string;
   milestones: string[];
   suggestedTools: string[];
-  bonusFeatures?: string[]; 
+  bonusFeatures?: string[];
 }
 
 export interface Course {
@@ -37,5 +38,5 @@ export interface Course {
   estimatedDuration?: string;
   modules: Module[];
   projects?: Project[];
-  raw?: string[]; 
+  raw?: string[];
 }

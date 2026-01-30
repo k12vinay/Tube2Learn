@@ -1,47 +1,59 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, BookOpen, Users, TrendingUp, Clock, MoreHorizontal } from 'lucide-react';
+import { Plus, BookOpen, Users, TrendingUp, Clock, Trash2, Eye } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import client from '../api/client';
+
+interface Course {
+  _id: string;
+  title: string;
+  modules: any[];
+  createdAt: string;
+  status: string;
+}
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const courses = [
-    {
-      id: 1,
-      title: 'Complete React Development Course',
-      modules: 8,
-      students: 245,
-      completion: 87,
-      lastUpdated: '2 days ago',
-      status: 'Published'
-    },
-    {
-      id: 2,
-      title: 'JavaScript Fundamentals',
-      modules: 12,
-      students: 156,
-      completion: 94,
-      lastUpdated: '1 week ago',
-      status: 'Draft'
-    },
-    {
-      id: 3,
-      title: 'Node.js Backend Development',
-      modules: 15,
-      students: 89,
-      completion: 76,
-      lastUpdated: '3 days ago',
-      status: 'Published'
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const res = await client.get('/courses');
+      setCourses(res.data);
+    } catch (error) {
+      console.error('Failed to fetch courses:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this course?')) return;
+    try {
+      await client.delete(`/courses/${id}`);
+      setCourses(courses.filter(c => c._id !== id));
+    } catch (error) {
+      console.error('Failed to delete course:', error);
+      alert('Failed to delete course');
+    }
+  };
 
   const stats = [
-    { label: 'Total Courses', value: '12', icon: BookOpen, color: 'blue' },
-    { label: 'Total Students', value: '1,247', icon: Users, color: 'green' },
-    { label: 'Completion Rate', value: '89%', icon: TrendingUp, color: 'purple' },
-    { label: 'Hours Generated', value: '156', icon: Clock, color: 'orange' }
+    { label: 'Total Courses', value: courses.length.toString(), icon: BookOpen, color: 'blue' },
+    // Mocking other stats for now as backend doesn't provide them yet
+    { label: 'Total Students', value: '0', icon: Users, color: 'green' },
+    { label: 'Completion Rate', value: '0%', icon: TrendingUp, color: 'purple' },
+    { label: 'Hours Generated', value: '0', icon: Clock, color: 'orange' }
   ];
+
+  if (loading) {
+    return <div className="min-h-screen pt-20 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  }
 
   return (
     <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-8">
@@ -86,78 +98,55 @@ export const Dashboard: React.FC = () => {
             <h2 className="text-xl font-semibold">Your Courses</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Course
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Modules
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Students
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Completion
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Updated
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {courses.map((course) => (
-                  <tr key={course.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{course.title}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.modules}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.students}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${course.completion}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm text-gray-500">{course.completion}%</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          course.status === 'Published'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {course.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {course.lastUpdated}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-gray-400 hover:text-gray-600">
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-                    </td>
+            {courses.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                No courses found. Create your first course!
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Course
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Modules
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created At
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {courses.map((course) => (
+                    <tr key={course._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{course.title}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {course.modules?.length || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(course.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-3">
+                          <Link to={`/editor/${course._id}`} className="text-blue-600 hover:text-blue-900">
+                            <Eye className="w-5 h-5" />
+                          </Link>
+                          <button onClick={() => handleDelete(course._id)} className="text-red-600 hover:text-red-900">
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

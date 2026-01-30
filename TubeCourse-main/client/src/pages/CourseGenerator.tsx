@@ -8,6 +8,7 @@ export const CourseGenerator: React.FC = () => {
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState(1); // 1: Input, 2: Generating, 3: Success
+  const [error, setError] = useState<string | null>(null);
 
   const addCourse = useCourseStore(state => state.addCourse); // Zustand action
 
@@ -17,6 +18,7 @@ export const CourseGenerator: React.FC = () => {
     if (!playlistUrl.trim()) return;
 
     setIsGenerating(true);
+    setError(null);
     setStep(2); // Move to generating step
 
     try {
@@ -41,11 +43,12 @@ export const CourseGenerator: React.FC = () => {
       setTimeout(() => {
         navigate(`/preview/${savedCourseResponse._id}`, { state: generatedCourse });
       }, 3000); // Reduced delay for smoother UX
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate course:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to generate course. Please check your API keys and try again.';
+      setError(errorMessage);
       setIsGenerating(false);
       setStep(1); // Revert to input step on error
-      // Optionally, add an error message display to the UI
     }
   };
 
@@ -78,6 +81,11 @@ export const CourseGenerator: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   />
                 </div>
+                {error && (
+                  <div className="mt-2 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
+                    ⚠️ {error}
+                  </div>
+                )}
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
@@ -122,7 +130,7 @@ export const CourseGenerator: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Creating course modules</span>
-  
+
                   <Loader2 className="w-4 h-4 animate-spin text-red-600" />
                 </div>
                 <div className="flex justify-between text-sm text-gray-400">
@@ -139,7 +147,7 @@ export const CourseGenerator: React.FC = () => {
 
           {step === 3 && (
             <div className="text-center py-12">
-             
+
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <BookOpen className="w-8 h-8 text-red-600" />
               </div>
